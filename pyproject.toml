@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "semi_markov"
+version = "0.1a0"
+authors = [
+  { name="Kristóf Müller", email="muller.kristof@itk.ppke.hu" }
+]
+description = "Hidden semi-Markov Models with extended Viterbi estimation"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.10",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering"
+]
+dynamic = ["dependencies"]
+
+[project.urls]
+Homepage = "https://github.com/mulkr/semi-markov/"
+Repository = "https://github.com/mulkr/semi-markov.git"
+Issues = "https://github.com/mulkr/semi-markov/issues"
+
+[tool.setuptools]
+packages = ["semi_markov"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}

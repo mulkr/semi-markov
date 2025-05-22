@@ -1,0 +1,9 @@
+*.pdf
+.vscode
+__pycache__
+.venv
+*.egg-info
+dist
+build
+sandbox.*
+.mypy_cache
