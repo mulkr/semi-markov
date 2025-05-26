@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0","setuptools_dso>=2.12"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,8 +10,8 @@ authors = [
 ]
 description = "Hidden semi-Markov Models with extended Viterbi estimation"
 readme = {file = "README.md", content-type = "text/markdown"}
-license = "GPL-3.0-only"
-license-files = ["LICENSE"]
+# license = "GPL-3.0-only"
+# license-files = ["LICENSE"]
 requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 3 - Alpha",

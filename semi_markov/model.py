@@ -1,5 +1,6 @@
 from .utils import singldim, multidim
 from .emission import EmissionProb
+from .accelerator import viterbi, forward_backward
 import numpy as np
 from numpy.random import Generator as rng
 
@@ -66,8 +67,11 @@ class HSMM():
             raise ValueError("Initial distribution does not add up to one")
         self.__init_dist = temp_start
 
-    def decode(self):
-        raise NotImplementedError("TODO, Viterbi algo")
+    def decode(self, observations: singldim):
+        #TODO: Bayesian correction and other probability modeling
+        obs_probs = np.array(observations)
+        out = np.empty_like(observations)
+        viterbi(self.init_dist,self.__state_num,obs_probs,len(observations),self.duration,len(self.duration),out)
 
     def sample(self, amount: int = 1, random: rng|None = None)-> tuple[singldim|float,singldim|int]:
         if random is None:
@@ -104,7 +108,7 @@ class HSMM():
         return sampled_obs, sampled_states
 
     def fit(self):
-        raise NotImplementedError("TODO, FB algo")
+        forward_backward()
 
 # del rng
 # del np

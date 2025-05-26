@@ -1,0 +1,6 @@
+from .utils import multidim, singldim
+
+__all__ = ['viterbi', 'forward_backward']
+
+def viterbi(init_state: singldim, state_num: int, obs_probs: multidim, time_len: int, dur_probs: multidim, max_dur: int, out_state_seq: singldim) -> singldim: ...
+def forward_backward() -> None: ...

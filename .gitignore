@@ -7,3 +7,9 @@ dist
 build
 sandbox.*
 .mypy_cache
+*.pyd
+*dsoinfo*
+*.dll
+*.so
+*.exp
+*.lib
