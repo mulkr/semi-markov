@@ -12,7 +12,7 @@ __all__ = ["EmissionProb","GaussianProb"]
 class EmissionProb():
     
     @abstractmethod
-    def sample_state(self, state: int, amount:int|tuple[int] = 1, generator: rng|None = None) -> npt.NDArray[np.float64]|float:
+    def sample_state(self, state: int, amount:int = 1, generator: rng|None = None) -> npt.NDArray[np.float64]|float:
         raise NotImplementedError("Abstract method not implemented")
     @abstractmethod
     def update(self, prob: multidim, obs: singldim) -> None:
@@ -40,7 +40,7 @@ class GaussianProb(EmissionProb):
     def mean(self) -> np_singldim|np_multidim:
         return self.__mean
     @mean.setter
-    def mean(self,mean: float|singldim|multidim):
+    def mean(self,mean: float|singldim|multidim) -> None:
         temp_mean = np.array(mean)
         if self.std is not None and temp_mean.shape != self.std.shape:
             raise ValueError("Emission mean and std shapes do not match")
@@ -49,7 +49,7 @@ class GaussianProb(EmissionProb):
     def std(self) -> np_singldim|np_multidim:
         return self.__std
     @std.setter
-    def std(self,std: float|singldim|multidim):
+    def std(self,std: float|singldim|multidim) -> None:
         if self.mean is not None and self.mean.shape != self.std.shape:
             raise ValueError("Emission mean and std shapes do not match")
         self.__std = np.array(std)
@@ -60,7 +60,7 @@ class GaussianProb(EmissionProb):
         return norm.pdf(obs,loc=self.mean[:,np.newaxis],scale=self.std[:,np.newaxis]) #type: ignore
 
     @override
-    def sample_state(self, state: int, amount:int|tuple[int] = 1, generator: rng|None = None) -> npt.NDArray[np.float64]|float:
+    def sample_state(self, state: int, amount:int = 1, generator: rng|None = None) -> npt.NDArray[np.float64]|float:
         return norm.rvs(self.mean[state], self.std[state], amount, random_state=generator) #type: ignore
 
     @override

@@ -1,11 +1,11 @@
 import numpy as np
 
-singldim = np.ndarray[int,np.dtype[np.float64]] | list[float]
-np_singldim = np.ndarray[int,np.dtype[np.float64]]
+np_singldim: type[np.ndarray[int, np.dtype[np.float64]]] = np.ndarray[int,np.dtype[np.float64]]
+singldim: type[list[float] | np.ndarray[int, np.dtype[np.float64]]] = np_singldim | list[float]
 
 # shape typing is not well supported currently by numpy, but in the future we can change this to better reflect the multidimensionality
-multidim = np.ndarray[tuple[int,int],np.dtype[np.float64]] | list[list[float]]
-np_multidim = np.ndarray[tuple[int,int],np.dtype[np.float64]]
+np_multidim: type[np.ndarray[tuple[int, int], np.dtype[np.float64]]] = np.ndarray[tuple[int,int],np.dtype[np.float64]]
+multidim: type[list[list[float]] | np.ndarray[tuple[int, int], np.dtype[np.float64]]] = np_multidim | list[list[float]]
 
 def TODO(message:str):
     raise NotImplementedError("[TODO]: "+message)
