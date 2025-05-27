@@ -13,6 +13,10 @@ class HSMM():
         
         self.__state_num = temp_transition.shape[0]
         self.__duration_len = temp_duration.shape[1]
+        self.__emission = emission
+        self.__transition = transition
+        self.__duration = duration
+        self.__init_dist = init_dist
         
         self.emission = emission
         self.transition = transition
@@ -70,8 +74,14 @@ class HSMM():
     def decode(self, observations: singldim):
         #TODO: Bayesian correction and other probability modeling
         obs_probs = np.array(observations)
-        out = np.empty_like(observations)
-        viterbi(self.init_dist,self.__state_num,obs_probs,len(observations),self.duration,len(self.duration),out)
+        out = np.zeros_like(observations)
+        out = viterbi(trans_mat = self.transition,
+            init_state = self.init_dist, state_num=self.__state_num,
+            obs_probs = obs_probs, time_len = len(observations),
+            dur_probs = self.duration,max_dur = len(self.duration),
+            out_state_seq = out
+            )
+        return out
 
     def sample(self, amount: int = 1, random: rng|None = None)-> tuple[singldim|float,singldim|int]:
         if random is None:
@@ -102,7 +112,7 @@ class HSMM():
 
         # Generate observations
         for state in range(self.__state_num):
-            state_mask = sampled_states == state
+            state_mask: np.ndarray = sampled_states == state
             sampled_obs[state_mask] = self.emission.sample_state(state, state_mask.sum(), random)
 
         return sampled_obs, sampled_states
