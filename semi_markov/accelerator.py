@@ -17,8 +17,8 @@ def viterbi(trans_mat: multidim,
             out_state_seq: singldim
             ) -> singldim:
 
-    buff_p_c = c.POINTER(c.c_double)
-    out = np.array(out_state_seq).astype(float)
+    buff_p_c = c.POINTER(c.c_int)
+    out = np.array(out_state_seq).astype(int)
     buff_p = out.ctypes.data_as(buff_p_c)
     
     lib.viterbi(c_array(np.array(trans_mat,dtype=float)),

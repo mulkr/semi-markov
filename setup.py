@@ -6,6 +6,8 @@ flag_char: str = "-"
 if platform == "win32":
     # MSVC does not support C23 yet, and I can't force setuptools to use MinGW dynamically
     flags.append("/std:c17")
+    flags.append("/wd4711")
+    flags.append("/wd4710")
     flag_char = "/"
 else:
     flags.append("-std:C23")

@@ -71,14 +71,14 @@ class HSMM():
             raise ValueError("Initial distribution does not add up to one")
         self.__init_dist = temp_start
 
-    def decode(self, observations: singldim):
+    def decode(self, observations: singldim) -> singldim:
         #TODO: Bayesian correction and other probability modeling
         obs_probs = np.array(observations)
         out = np.zeros_like(observations)
         out = viterbi(trans_mat = self.transition,
             init_state = self.init_dist, state_num=self.__state_num,
             obs_probs = obs_probs, time_len = len(observations),
-            dur_probs = self.duration,max_dur = len(self.duration),
+            dur_probs = self.duration, max_dur = self.__duration_len,
             out_state_seq = out
             )
         return out
@@ -92,7 +92,7 @@ class HSMM():
             obs = self.emission.sample_state(state,generator=random)
             return obs, state
 
-        sampled_states = np.empty(amount)
+        sampled_states = np.empty(amount,dtype=np.int32)
         sampled_obs = np.empty(amount)
 
         # Generate states
