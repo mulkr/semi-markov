@@ -10,7 +10,7 @@ if platform == "win32":
     flags.append("/wd4710")
     flag_char = "/"
 else:
-    flags.append("-std:C23")
+    flags.append("-std=c23")
 
 flags.append(flag_char+"Wall")
 

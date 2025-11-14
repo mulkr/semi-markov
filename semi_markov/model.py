@@ -1,8 +1,10 @@
+from numpy.typing import NDArray
 from .utils import singldim, multidim
 from .emission import EmissionProb
 from .accelerator import viterbi, forward_backward
 import numpy as np
 from numpy.random import Generator as rng
+from scipy.stats import multivariate_normal
 
 __all__ = ["HSMM"]
 
@@ -10,19 +12,19 @@ class HSMM():
     def __init__(self, emission: EmissionProb, transition: multidim, duration: multidim , init_dist: singldim) -> None:
         temp_transition = np.array(transition)
         temp_duration = np.array(duration)
-        
+
         self.__state_num = temp_transition.shape[0]
         self.__duration_len = temp_duration.shape[1]
         self.__emission = emission
         self.__transition = transition
         self.__duration = duration
         self.__init_dist = init_dist
-        
+
         self.emission = emission
         self.transition = transition
         self.duration = duration
         self.init_dist = init_dist
-    
+
     @property
     def emission(self)->EmissionProb:
         return self.__emission
@@ -44,7 +46,7 @@ class HSMM():
         if not np.all(np.isclose(np.ones_like(prob_sum),prob_sum)):
             raise ValueError("Transition matrix rows do not add up to one")
         self.__transition = temp_tmat
-        
+
     @property
     def duration(self)->multidim:
         return self.__duration
@@ -57,7 +59,7 @@ class HSMM():
         if not np.all(np.isclose(np.ones_like(prob_sum),prob_sum)):
             raise ValueError("Duration distribution rows do not add up to one")
         self.__duration = temp_dur
-    
+
     @property
     def init_dist(self)->singldim:
         return self.__init_dist
@@ -71,9 +73,10 @@ class HSMM():
             raise ValueError("Initial distribution does not add up to one")
         self.__init_dist = temp_start
 
-    def decode(self, observations: singldim) -> singldim:
+    def decode(self, observations: singldim | multidim) -> singldim:
         #TODO: Bayesian correction and other probability modeling
-        obs_probs = np.array(observations)
+        obs_probs = self.emission.likelihood(observations)
+        # correction = multivariate_normal.pdf(observations,np.mean(observations,axis=0),np.cov(observations)) #type:ignore
         out = np.zeros_like(observations)
         out = viterbi(trans_mat = self.transition,
             init_state = self.init_dist, state_num=self.__state_num,
@@ -89,7 +92,7 @@ class HSMM():
 
         state = random.choice(self.__state_num, p=self.init_dist)
         if amount == 1:
-            obs = self.emission.sample_state(state,generator=random)
+            obs= self.emission.sample_state(state,generator=random)
             return obs, state
 
         sampled_states = np.empty(amount,dtype=np.int32)
