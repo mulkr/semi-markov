@@ -1,24 +1,7 @@
-/*
-A -> a_ij:     transition matrix and elements
-B -> b_j(O_t): probability that state j generates observation O at time t
-N:             number of states
-T:             time length
-pi:            initial distribution
-pi_i:          probability of being in state i
-delta_t(j):    likelihood of most probable state seq until time t and ends in state j
-d_max:         maximum time expected to stay in a state
-q_t:           state at t
-qstar_t:       most likely state at t
-psi_t:         most likely previous state at t
-D_t:           maximum delta at t (?)
-Tstar:         time of the maximum delta_t(j) after T (until max duration)
-qstar_Tstar:   most likely state at Tstar
-*/
 #include <float.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "utils.h"
 
 #ifdef _WIN32
 #define VIT_PREFIX __declspec(dllexport)
@@ -26,12 +9,40 @@ qstar_Tstar:   most likely state at Tstar
 #define VIT_PREFIX
 #endif
 
-size_t indexing(size_t x, size_t y, size_t width) {
-    return y * width + x;
+#define NEG_INF (-INFINITY)
+
+static inline double max_array(const double *arr, int n) {
+    double best = NEG_INF;
+    for (int i = 0; i < n; i++)
+        if (arr[i] > best) best = arr[i];
+    return best;
+}
+
+static inline int argmax_array(const double *arr, int n) {
+    double best = NEG_INF;
+    int idx = 0;
+    for (int i = 0; i < n; i++)
+        if (arr[i] > best) { best = arr[i]; idx = i; }
+    return idx;
+}
+
+static inline double compute_log_likelihood(const double* obs_probs, size_t time_len, size_t time, size_t state, size_t dur) {
+    // duration covers time steps [time-dur, time]
+    int start = time - dur;
+    if (start < 0) return NEG_INF;
+    if (time >= time_len) return NEG_INF;
+
+    double log_likelihood = 0.0; // sum of log(p(x))
+
+    for (size_t i = start; i <= time; i++) {
+        double p = obs_probs[state * time_len + i];
+        if (p <= 0) return NEG_INF;
+        log_likelihood += log(p);
+    }
+    return log_likelihood;
 }
 
 // We assume that Bayesian correction and other probability modeling is already done.
-// I tried to reference the relevant Matlab code in Springer's implementation.
 // Potentially this function could return a double* with the state sequence
 // but I'd rather let Python manage that memory instead :)
 VIT_PREFIX void viterbi(const double* trans_mat,
@@ -40,129 +51,136 @@ VIT_PREFIX void viterbi(const double* trans_mat,
              const double* dur_probs, size_t max_dur,
              int* out_state_seq) {
 
-    size_t pad_len = (time_len + max_dur -1); //?? -1
+    double* delta = malloc(sizeof(double) * time_len * state_num);
+    int* psi = malloc(sizeof(int) * time_len  * state_num * 2);
+    double* state_val_buffer = malloc(sizeof(double) * state_num);
+    double* dur_buffer = malloc(sizeof(double) * max_dur);
+    int* dur_buffer_states = malloc(sizeof(int) * max_dur);
 
-    // delta = ones(T+ max_duration_D-1,N)*-inf;
-    size_t size_2d_pad = pad_len*state_num;
-    //TODO: We may need to change the order of columns and rows for some matrices
-    double* delta = malloc(size_2d_pad * sizeof(double));
-    if (delta == NULL){
-        fprintf(stderr,"Failure to allocate delta array in Viterbi algo");
+    //check memory allocation
+    if (delta==NULL){
+        fprintf(stderr, "Failure to allocate delta array in Viterbi");
         return;
     }
-    for (size_t i=0;i<size_2d_pad;++i){
-        delta[i] = -DBL_MAX;
+    if (psi==NULL){
+        fprintf(stderr, "Failure to allocate psi array in Viterbi");
+        return;
     }
-
-    // psi = zeros(T+ max_duration_D-1,N);
-    size_t* psi = calloc(size_2d_pad, sizeof(size_t));
-    if (psi == NULL){
-        fprintf(stderr,"Failure to allocate psi array in Viterbi algo");
+    if (state_val_buffer==NULL){
+        fprintf(stderr, "Failure to allocate state value buffer in Viterbi");
+        return;
+    }
+    if (dur_buffer==NULL){
+        fprintf(stderr, "Failure to allocate duration buffer in Viterbi");
+        return;
+    }
+    if (dur_buffer_states==NULL){
+        fprintf(stderr, "Failure to allocate duration state buffer in Viterbi");
         return;
     }
 
-    // psi_duration =zeros(T + max_duration_D-1,N);
-    size_t* psi_dur = calloc(size_2d_pad, sizeof(size_t));
-    if (psi_dur == NULL){
-        fprintf(stderr,"Failure to allocate psi duration array in Viterbi algo");
+    //convert inputs to log space
+    double* log_startprob = malloc(sizeof(double) * state_num);
+    double* log_transmat = malloc(sizeof(double) * state_num * state_num);
+    double* log_duration = malloc(sizeof(double) * state_num * max_dur);
+    if (log_startprob==NULL){
+        fprintf(stderr, "Failure to allocate log start probability array in Viterbi");
+        return;
+    }
+    if (log_transmat==NULL){
+        fprintf(stderr, "Failure to allocate log transition matrix in Viterbi");
+        return;
+    }
+    if (log_duration==NULL){
+        fprintf(stderr, "Failure to allocate log duration array in Viterbi");
         return;
     }
 
-    double* dur_sum = calloc(state_num,sizeof(double));
-    for(size_t i=0;i<state_num;++i){
-        double sum = 0;
-        for(size_t j=0;j<max_dur;++j){
-            sum += dur_probs[indexing(j,i,max_dur)];
+    for (size_t i = 0; i < state_num; i++) {
+        log_startprob[i] = (init_state[i] > 0) ? log(init_state[i]) : NEG_INF;
+
+        for (size_t j = 0; j < state_num; j++) {
+            double p = trans_mat[i * state_num + j];
+            log_transmat[i * state_num + j] = (p > 0) ? log(p) : NEG_INF;
         }
-        dur_sum[i] = sum;
+
+        for (size_t d = 0; d < max_dur; d++) {
+            double p = dur_probs[i * max_dur + d];
+            log_duration[i * max_dur + d] = (p > 0) ? log(p) : NEG_INF;
+        }
     }
 
-    // delta(1,:) = log(pi_vector) + log(observation_probs(1,:))
-    for(size_t i=0;i<state_num;++i)
-        delta[indexing(0,i,pad_len)] = log(init_state[i]) + log(obs_probs[indexing(0,i,time_len)]);
+    //forward
+    for (size_t t = 0; t < time_len ; t++) {
+        for (size_t curr_state = 0; curr_state < state_num; curr_state++) {
+            for (size_t dur = 0; dur < max_dur; dur++) {
 
-    for(size_t t=1; t<pad_len; ++t){
-        for(size_t state=0; state<state_num; ++state){
-            for(size_t dur=1; dur<=max_dur; ++dur){
+                double emit_prob_log = compute_log_likelihood(obs_probs, time_len, t, curr_state, dur);
 
-                int start = t-dur;
-                int end   = t;
+                if (!isfinite(emit_prob_log)) {
+                    dur_buffer[dur] = NEG_INF;
+                    dur_buffer_states[dur] = -1;
+                    continue;
+                }
 
-                if(start<0) start=0;
-                if(start>time_len-1) start=time_len;
+                if (t - dur == 0) {
+                    //sequence start
+                    dur_buffer[dur] = log_startprob[curr_state] + log_duration[curr_state * max_dur + dur] + emit_prob_log;
+                    dur_buffer_states[dur] = -1;
 
-                if(end>time_len) end=time_len;
-
-                // [max_delta, max_index] = max(delta(start_t,:)+log(a_matrix(:,j))');
-                double max_delta = delta[indexing(start,0,pad_len)];
-                size_t max_index = 0;
-                for(size_t i=0;i<state_num;++i){
-                    double val = delta[indexing(start,i,pad_len)]+log(trans_mat[indexing(state,i,state_num)]);
-                    if(val>max_delta){
-                        max_delta=val;
-                        max_index=i;
+                } else if (t - dur > 0) {
+                    //regular transitions
+                    for (size_t prev_state = 0; prev_state < state_num; prev_state++) {
+                        state_val_buffer[prev_state] = delta[(t - dur - 1) * state_num + prev_state] + log_transmat[prev_state * state_num + curr_state] + emit_prob_log;
                     }
-                }
+                    double best_prev = max_array(state_val_buffer, state_num);
+                    int best_prev_state = argmax_array(state_val_buffer, state_num);
 
-                // probs = prod(observation_probs(start_t:end_t,j));
-                double probs = 1;
-                for(size_t i=start;i<end;++i){
-                    probs *= obs_probs[indexing(state,i,state_num)];
-                }
+                    dur_buffer[dur] = best_prev + log_duration[curr_state * max_dur + dur];
+                    dur_buffer_states[dur] = best_prev_state;
 
-                // emission_probs = log(probs);
-                double emit_probs = log(probs);
-
-                // delta_temp = max_delta + (emission_probs)+ log((duration_probs(j,d)./duration_sum(j)));
-                double delta_temp = max_delta + emit_probs + log(dur_probs[indexing(dur,state,max_dur)]/ dur_sum[state]);
-
-                if(delta_temp>delta[indexing(t,state,pad_len)]){
-                    delta[indexing(t,state,pad_len)] = delta_temp;
-                    psi[indexing(t,state,pad_len)] = max_index;
-                    psi_dur[indexing(t,state,pad_len)] = dur;
-                    // printf("t:%zu state:%zu dur:%zu\n",t,state,dur);
+                } else {
+                    //infeasible duration
+                    dur_buffer[dur] = NEG_INF;
+                    dur_buffer_states[dur] = -1;
                 }
             }
+
+            double best = max_array(dur_buffer, max_dur);
+            int best_d = argmax_array(dur_buffer, max_dur);
+
+            delta[t * state_num + curr_state] = best;
+            psi[(t * state_num + curr_state) * 2 + 0] = best_d;
+            psi[(t * state_num + curr_state) * 2 + 1] = dur_buffer_states[best_d];
         }
     }
 
-    //select pos from delta after time_len until time_len+max_dur where maximal value
-    int state_time_after = time_len;
-    for(size_t i=time_len+1;i<pad_len;++i)
-        for(size_t j=0;j<state_num;++j)
-            if(delta[indexing(i,j,pad_len)]>delta[indexing(state_time_after,j,pad_len)])
-                state_time_after = i;
-    //select state from delta at state_time_after where maximal value
-    int state_after = 0;
-    for(size_t i=0;i<state_num;++i)
-        if (delta[indexing(state_time_after,i,pad_len)]>delta[indexing(state_time_after,state_after,pad_len)])
-            state_after = i;
+    int back_state = argmax_array(&delta[(time_len - 1) * state_num], state_num);
+    int back_dur   = psi[((time_len  - 1) * state_num + back_state) * 2 + 0];
 
     //backtrack
-    // for(size_t i=0;i<pad_len;++i){
-    //     for(size_t j=0;j<state_num;++j){
-    //         printf("%zu ",psi[indexing(i,j,pad_len)]);
-    //     }
-    //     printf("\n");
-    // }
-
-    int time_loc = state_time_after;
-    // printf("time_loc: %d\n",time_loc);
-    // printf("state: %d\n",state_after);
-    while(time_loc>1){
-        int dstar = psi_dur[indexing(time_loc,state_after,pad_len)];
-        for(size_t i=time_loc-dstar;i<=time_loc-1;++i){
-            out_state_seq[i] = state_after;
+    int t = time_len  - 1;
+    while (t >= 0) {
+        for (int k = 0; k < back_dur + 1 && t - k >= 0; k++) {
+            out_state_seq[t - k] = back_state;
         }
-        state_after = psi[indexing(time_loc,state_after,pad_len)];
-        // printf("%d,%d,%d ",time_loc-dstar,time_loc-1, state_after);
-        time_loc = time_loc - dstar;
+
+        int prev_state = psi[(t * state_num + back_state) * 2 + 1];
+
+        t -= (back_dur + 1);
+        back_state = prev_state;
+        if (t >= 0){
+            back_dur = psi[(t * state_num + back_state) * 2 + 0];
+        }
     }
-    printf("\n");
 
     //don't forget to free the memory :^)
     free(delta);
     free(psi);
-    free(psi_dur);
-    free(dur_sum);
+    free(state_val_buffer);
+    free(dur_buffer);
+    free(dur_buffer_states);
+    free(log_startprob);
+    free(log_transmat);
+    free(log_duration);
 }

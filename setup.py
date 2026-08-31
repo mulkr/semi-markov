@@ -5,14 +5,15 @@ flags: list[str] = []
 flag_char: str = "-"
 if platform == "win32":
     # MSVC does not support C23 yet, and I can't force setuptools to use MinGW dynamically
-    flags.append("/std:c17")
+    # flags.append("/std:c17")
     flags.append("/wd4711")
     flags.append("/wd4710")
     flag_char = "/"
-else:
-    flags.append("-std=c23")
+# else:
+#     flags.append("-std=c23")
 
 flags.append(flag_char+"Wall")
+flags.append(flag_char+"Wextra")
 
 dso = DSO('semi_markov.extension', ['semi_markov/ext/viterbi.c','semi_markov/ext/forward_backward.c'], lang_compile_args={'c':flags})
 
